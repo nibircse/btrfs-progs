@@ -443,7 +443,7 @@ static int do_balance(const char *path, struct btrfs_ioctl_balance_args *args,
 		printf("WARNING:\n\n");
 		printf("\tFull balance without filters requested. This operation is very\n");
 		printf("\tintense and takes potentially very long. It is recommended to\n");
-		printf("\tuse the balance filters to narrow down the balanced data.\n");
+		printf("\tuse the balance filters to narrow down the scope of balance.\n");
 		printf("\tUse 'btrfs balance start --full-balance' option to skip this\n");
 		printf("\twarning. The operation will start in %d seconds.\n", delay);
 		printf("\tUse Ctrl-C to stop it.\n");
@@ -475,8 +475,7 @@ static int do_balance(const char *path, struct btrfs_ioctl_balance_args *args,
 				fprintf(stderr, "balance canceled by user\n");
 			ret = 0;
 		} else {
-			error("error during balancing '%s': %s", path,
-					strerror(errno));
+			error("error during balancing '%s': %m", path);
 			if (errno != EINPROGRESS)
 				fprintf(stderr,
 			"There may be more info in syslog - try dmesg | tail\n");
@@ -794,9 +793,9 @@ static int cmd_balance_resume(int argc, char **argv)
 			else
 				ret = 1;
 		} else {
-			error("error during balancing '%s': %s\n"
+			error("error during balancing '%s': %m\n"
 			  "There may be more info in syslog - try dmesg | tail",
-				path, strerror(errno));
+				path);
 			ret = 1;
 		}
 	} else {
@@ -868,7 +867,7 @@ static int cmd_balance_status(int argc, char **argv)
 			ret = 0;
 			goto out;
 		}
-		error("balance status on '%s' failed: %s", path, strerror(errno));
+		error("balance status on '%s' failed: %m", path);
 		ret = 2;
 		goto out;
 	}

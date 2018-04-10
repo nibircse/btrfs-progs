@@ -35,6 +35,7 @@ btrfs-select-super
 btrfs-calc-size
 btrfs-crc
 btrfstune
+mktables
 libbtrfs.a
 libbtrfs.so
 libbtrfs.so.0
@@ -42,6 +43,7 @@ libbtrfs.so.0.1
 library-test
 library-test-static
 /fssum
+testsuite-id
 
 /tests/*-tests-results.txt
 /tests/test-console.txt

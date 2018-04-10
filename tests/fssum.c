@@ -24,6 +24,7 @@
 #include <fcntl.h>
 #include <dirent.h>
 #include <errno.h>
+#include <sys/sysmacros.h>
 #include <sys/stat.h>
 #include <assert.h>
 #include <time.h>
@@ -420,6 +421,9 @@ check_manifest(char *fn, char *m, char *c, int last_call)
 	while ((l = getln(line, sizeof(line), in_fp))) {
 		rem_c = strrchr(l, ' ');
 		if (!rem_c) {
+			if (checksum)
+				free(checksum);
+
 			/* final cs */
 			checksum = strdup(l);
 			break;
@@ -503,6 +507,7 @@ sum(int dirfd, int level, sum_t *dircs, char *path_prefix, char *path_in)
 		}
 		++entries;
 	}
+
 	qsort(namelist, entries, sizeof(*namelist), namecmp);
 	for (i = 0; i < entries; ++i) {
 		struct stat64 st;
@@ -527,8 +532,8 @@ sum(int dirfd, int level, sum_t *dircs, char *path_prefix, char *path_in)
 		}
 		ret = lstat64(namelist[i], &st);
 		if (ret) {
-			fprintf(stderr, "stat failed for %s/%s: %s\n",
-				path_prefix, path, strerror(errno));
+			fprintf(stderr, "stat failed for %s/%s: %m\n",
+				path_prefix, path);
 			exit(-1);
 		}
 		sum_add_u64(&meta, level);
@@ -552,8 +557,8 @@ sum(int dirfd, int level, sum_t *dircs, char *path_prefix, char *path_in)
 			if (fd == -1 && flags[FLAG_OPEN_ERROR]) {
 				sum_add_u64(&meta, errno);
 			} else if (fd == -1) {
-				fprintf(stderr, "open failed for %s/%s: %s\n",
-					path_prefix, path, strerror(errno));
+				fprintf(stderr, "open failed for %s/%s: %m\n",
+					path_prefix, path);
 				exit(-1);
 			} else {
 				sum(fd, level + 1, &cs, path_prefix, path);
@@ -570,9 +575,8 @@ sum(int dirfd, int level, sum_t *dircs, char *path_prefix, char *path_in)
 					sum_add_u64(&meta, errno);
 				} else if (fd == -1) {
 					fprintf(stderr,
-						"open failed for %s/%s: %s\n",
-						path_prefix, path,
-						strerror(errno));
+						"open failed for %s/%s: %m\n",
+						path_prefix, path);
 					exit(-1);
 				}
 				if (fd != -1) {
@@ -580,9 +584,8 @@ sum(int dirfd, int level, sum_t *dircs, char *path_prefix, char *path_in)
 					if (ret < 0) {
 						fprintf(stderr,
 							"read failed for "
-							"%s/%s: %s\n",
-							path_prefix, path,
-							strerror(errno));
+							"%s/%s: %m\n",
+							path_prefix, path);
 						exit(-1);
 					}
 					close(fd);
@@ -624,7 +627,11 @@ sum(int dirfd, int level, sum_t *dircs, char *path_prefix, char *path_in)
 		sum_add_sum(dircs, &meta);
 next:
 		free(path);
+		free(namelist[i]);
 	}
+
+	free(namelist);
+	closedir(d);
 }
 
 int
@@ -636,7 +643,9 @@ main(int argc, char *argv[])
 	char *path;
 	int fd;
 	sum_t cs;
+	char *sumstring;
 	char flagstring[sizeof(flchar)];
+	int ret = 0;
 	int i;
 	int plen;
 	int elen;
@@ -682,8 +691,7 @@ main(int argc, char *argv[])
 			out_fp = fopen(optarg, "w");
 			if (!out_fp) {
 				fprintf(stderr,
-					"failed to open output file: %s\n",
-					strerror(errno));
+					"failed to open output file: %m\n");
 				exit(-1);
 			}
 			break;
@@ -691,8 +699,7 @@ main(int argc, char *argv[])
 			in_fp = fopen(optarg, "r");
 			if (!in_fp) {
 				fprintf(stderr,
-					"failed to open input file: %s\n",
-					strerror(errno));
+					"failed to open input file: %m\n");
 				exit(-1);
 			}
 			break;
@@ -736,6 +743,9 @@ main(int argc, char *argv[])
 		} else if ((p = strchr(l, ':'))) {
 			*p++ = 0;
 			parse_flags(l);
+
+			if (checksum)
+				free(checksum);
 			checksum = strdup(p);
 		} else {
 			fprintf(stderr, "invalid input file format\n");
@@ -774,8 +784,7 @@ main(int argc, char *argv[])
 
 	fd = open(path, O_RDONLY);
 	if (fd == -1) {
-		fprintf(stderr, "failed to open %s: %s\n", path,
-			strerror(errno));
+		fprintf(stderr, "failed to open %s: %m\n", path);
 		exit(-1);
 	}
 
@@ -798,16 +807,28 @@ main(int argc, char *argv[])
 		if (!gen_manifest)
 			fprintf(out_fp, "%s:", flagstring);
 
-		fprintf(out_fp, "%s\n", sum_to_string(&cs));
+		sumstring = sum_to_string(&cs);
+		fprintf(out_fp, "%s\n", sumstring);
+		free(sumstring);
 	} else {
-		if (strcmp(checksum, sum_to_string(&cs)) == 0) {
+		sumstring = sum_to_string(&cs);
+		if (strcmp(checksum, sumstring) == 0) {
 			printf("OK\n");
-			exit(0);
+			ret = 0;
 		} else {
 			printf("FAIL\n");
-			exit(1);
+			ret = 1;
 		}
+
+		free(checksum);
+		free(sumstring);
 	}
 
-	exit(0);
+	if (in_fp)
+		fclose(in_fp);
+
+	if (out_fp != stdout)
+		fclose(out_fp);
+
+	exit(ret);
 }

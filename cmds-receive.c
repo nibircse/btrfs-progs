@@ -1098,7 +1098,7 @@ static int do_receive(struct btrfs_receive *rctx, const char *tomnt,
 	char *dest_dir_full_path;
 	char root_subvol_path[PATH_MAX];
 	int end = 0;
-	int count;
+	int iterations = 0;
 
 	dest_dir_full_path = realpath(tomnt, NULL);
 	if (!dest_dir_full_path) {
@@ -1193,7 +1193,6 @@ static int do_receive(struct btrfs_receive *rctx, const char *tomnt,
 	if (ret < 0)
 		goto out;
 
-	count = 0;
 	while (!end) {
 		if (rctx->cached_capabilities_len) {
 			if (g_verbose >= 3)
@@ -1207,22 +1206,28 @@ static int do_receive(struct btrfs_receive *rctx, const char *tomnt,
 							 rctx,
 							 rctx->honor_end_cmd,
 							 max_errors);
-		if (ret < 0)
-			goto out;
-		/* Empty stream is invalid */
-		if (ret && count == 0) {
-			error("empty stream is not considered valid");
-			ret = -EINVAL;
-			goto out;
+		if (ret < 0) {
+			if (ret != -ENODATA)
+				goto out;
+
+			/* Empty stream is invalid */
+			if (iterations == 0) {
+				error("empty stream is not considered valid");
+				ret = -EINVAL;
+				goto out;
+			}
+
+			ret = 1;
 		}
-		count++;
-		if (ret)
+		if (ret > 0)
 			end = 1;
 
 		close_inode_for_write(rctx);
 		ret = finish_subvol(rctx);
 		if (ret < 0)
 			goto out;
+
+		iterations++;
 	}
 	ret = 0;
 
@@ -1280,7 +1285,7 @@ int cmd_receive(int argc, char **argv)
 			{ NULL, 0, NULL, 0 }
 		};
 
-		c = getopt_long(argc, argv, "Cevf:mp:", long_opts, NULL);
+		c = getopt_long(argc, argv, "Cevf:m:p:E:", long_opts, NULL);
 		if (c < 0)
 			break;
 
@@ -1336,7 +1341,7 @@ int cmd_receive(int argc, char **argv)
 	if (fromfile[0]) {
 		receive_fd = open(fromfile, O_RDONLY | O_NOATIME);
 		if (receive_fd < 0) {
-			error("cannot open %s: %s", fromfile, strerror(errno));
+			error("cannot open %s: %m", fromfile);
 			goto out;
 		}
 	}
