@@ -78,4 +78,7 @@ stamp-h
 stamp-h.in
 stamp-h1
 config/*
-
+.pc/
+.debhelper/
+debian/btrfs-progs/
+debian/btrfs-progs-udeb/
