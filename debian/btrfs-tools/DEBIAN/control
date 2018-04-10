@@ -1,0 +1,12 @@
+Package: btrfs-tools
+Source: btrfs-progs
+Version: 4.15.1-subutai.1
+Architecture: amd64
+Maintainer: Dimitri John Ledkov <xnox@debian.org>
+Installed-Size: 29
+Depends: btrfs-progs
+Section: oldlibs
+Priority: optional
+Homepage: http://btrfs.wiki.kernel.org/
+Description: transitional dummy package
+ This is a transitional dummy package. It can safely be removed.
