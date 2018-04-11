@@ -167,10 +167,9 @@ struct btrfs_free_space_ctl;
 /* csum types */
 #define BTRFS_CSUM_TYPE_CRC32	0
 
+/* four bytes for CRC32 */
 static int btrfs_csum_sizes[] = { 4 };
 
-/* four bytes for CRC32 */
-#define BTRFS_CRC32_SIZE 4
 #define BTRFS_EMPTY_DIR_SIZE 0
 
 #define BTRFS_FT_UNKNOWN	0
@@ -958,7 +957,17 @@ struct btrfs_csum_item {
 #define BTRFS_BLOCK_GROUP_RAID5    	(1ULL << 7)
 #define BTRFS_BLOCK_GROUP_RAID6    	(1ULL << 8)
 #define BTRFS_BLOCK_GROUP_RESERVED	BTRFS_AVAIL_ALLOC_BIT_SINGLE
-#define BTRFS_NR_RAID_TYPES             7
+
+enum btrfs_raid_types {
+	BTRFS_RAID_RAID10,
+	BTRFS_RAID_RAID1,
+	BTRFS_RAID_DUP,
+	BTRFS_RAID_RAID0,
+	BTRFS_RAID_SINGLE,
+	BTRFS_RAID_RAID5,
+	BTRFS_RAID_RAID6,
+	BTRFS_NR_RAID_TYPES
+};
 
 #define BTRFS_BLOCK_GROUP_TYPE_MASK	(BTRFS_BLOCK_GROUP_DATA |    \
 					 BTRFS_BLOCK_GROUP_SYSTEM |  \

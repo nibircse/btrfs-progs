@@ -834,7 +834,16 @@ void btrfs_print_key(struct btrfs_disk_key *disk_key)
 	 */
 	case BTRFS_ROOT_ITEM_KEY:
 		printf(" ");
-		print_objectid(stdout, offset, type);
+		/*
+		 * Normally offset of ROOT_ITEM should present the generation
+		 * of creation time of the root.
+		 * However if this is reloc tree, offset is the subvolume
+		 * id of its source. Here we do extra check on this.
+		 */
+		if (objectid == BTRFS_TREE_RELOC_OBJECTID)
+			print_objectid(stdout, offset, type);
+		else
+			printf("%lld", offset);
 		printf(")");
 		break;
 	default:
@@ -1179,11 +1188,12 @@ void btrfs_print_leaf(struct btrfs_root *root, struct extent_buffer *eb)
 	header_flags_to_str(flags, flags_str);
 	nr = btrfs_header_nritems(eb);
 
-	printf("leaf %llu items %d free space %d generation %llu owner %llu\n",
+	printf("leaf %llu items %d free space %d generation %llu owner ",
 		(unsigned long long)btrfs_header_bytenr(eb), nr,
 		btrfs_leaf_free_space(root, eb),
-		(unsigned long long)btrfs_header_generation(eb),
-		(unsigned long long)btrfs_header_owner(eb));
+		(unsigned long long)btrfs_header_generation(eb));
+	print_objectid(stdout, btrfs_header_owner(eb), 0);
+	printf("\n");
 	printf("leaf %llu flags 0x%llx(%s) backref revision %d\n",
 		btrfs_header_bytenr(eb), flags, flags_str, backref_rev);
 	print_uuids(eb);
@@ -1356,12 +1366,13 @@ void btrfs_print_tree(struct btrfs_root *root, struct extent_buffer *eb, int fol
 		btrfs_print_leaf(root, eb);
 		return;
 	}
-	printf("node %llu level %d items %d free %u generation %llu owner %llu\n",
+	printf("node %llu level %d items %d free %u generation %llu owner ",
 	       (unsigned long long)eb->start,
 	        btrfs_header_level(eb), nr,
 		(u32)BTRFS_NODEPTRS_PER_BLOCK(root->fs_info) - nr,
-		(unsigned long long)btrfs_header_generation(eb),
-		(unsigned long long)btrfs_header_owner(eb));
+		(unsigned long long)btrfs_header_generation(eb));
+	print_objectid(stdout, btrfs_header_owner(eb), 0);
+	printf("\n");
 	print_uuids(eb);
 	fflush(stdout);
 	for (i = 0; i < nr; i++) {
@@ -1389,19 +1400,16 @@ void btrfs_print_tree(struct btrfs_root *root, struct extent_buffer *eb, int fol
 				(unsigned long long)btrfs_header_owner(eb));
 			continue;
 		}
-		if (btrfs_is_leaf(next) && btrfs_header_level(eb) != 1) {
-			warning(
-	"eb corrupted: item %d eb level %d next level %d, skipping the rest",
-				i, btrfs_header_level(next),
-				btrfs_header_level(eb));
-			goto out;
-		}
 		if (btrfs_header_level(next) != btrfs_header_level(eb) - 1) {
 			warning(
-	"eb corrupted: item %d eb level %d next level %d, skipping the rest",
-				i, btrfs_header_level(next),
-				btrfs_header_level(eb));
-			goto out;
+"eb corrupted: parent bytenr %llu slot %d level %d child bytenr %llu level has %d expect %d, skipping the slot",
+				btrfs_header_bytenr(eb), i,
+				btrfs_header_level(eb),
+				btrfs_header_bytenr(next),
+				btrfs_header_level(next),
+				btrfs_header_level(eb) - 1);
+			free_extent_buffer(next);
+			continue;
 		}
 		btrfs_print_tree(root, next, 1);
 		free_extent_buffer(next);
@@ -1409,6 +1417,5 @@ void btrfs_print_tree(struct btrfs_root *root, struct extent_buffer *eb, int fol
 
 	return;
 
-out:
 	free_extent_buffer(next);
 }
